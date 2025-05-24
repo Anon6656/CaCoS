@@ -29,7 +29,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     device = args.device #torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    path = r'C:\Users\thsou\OneDrive\Desktop\Others_Code_and_Docs\Over_Smoothing_Project_Cora/Data'
+    path = r'/CaCoS/Data'
     edgelist_file = None
     label_file = None
     
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     weight_decay = args.weight_decay
     pooling_ratio = args.pooling_ratio
 
-    result_path = os.getcwd() #r'C:\Users\thsou\OneDrive\Desktop\Others_Code_and_Docs\Over_Smoothing_Project_Cora/Result_' + dataset + '/'
+    result_path = os.getcwd() 
     baseline = 'tcpool' 
 
     with open(result_path + '/' +'result_file.csv', 'a') as result_file:
