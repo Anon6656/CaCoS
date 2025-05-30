@@ -18,7 +18,7 @@ if __name__ == "__main__":
     # parser.add_argument('--max_subgraphs', nargs='+', type = int, default = [0, 3, 4, 5, 6], help = 'maximum number of subgraphs')
     parser.add_argument('--decom_type', type = str, default = 'core', help = 'truss/core')
     parser.add_argument('--pooling_ratio', type = float, default = 0.5, help = 'pooling ratio')
-    parser.add_argument('--dataset_no', type = int , default= 13, help = 'Cora/CiteSeer/PubMed')
+    parser.add_argument('--dataset_no', type = int , default= 1, help = 'Cora/CiteSeer/PubMed')
     parser.add_argument('--device', type = str, default= 'cuda:0', help = 'specify the cuda device' )
     parser.add_argument('--epochs', type = int, default = 250, help = 'number of ipoches')
     parser.add_argument('--given_patience', type = int, default= 50, help= 'stopping criteria')
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     device = args.device #torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    path = r'/CaCoS/Data'
+    path = os.path.join(str(os.getcwd()), 'Data')#r'/CaCoS/Data'
     edgelist_file = None
     label_file = None
     

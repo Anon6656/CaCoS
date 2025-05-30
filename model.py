@@ -1,28 +1,10 @@
 
 import torch
-# import time
-# import os
-# import random
-# import torch.nn as nn
 import torch.nn.functional as F
-# import networkx as nx
-# from torch.utils.data import Dataset
-# from collections import OrderedDict
-# from torch.nn.modules.linear import Linear
-# from torch.optim.lr_scheduler import ReduceLROnPlateau
-# import networkx as nx
-# import numpy as np
-# import matplotlib.pyplot as plt
-# from torch_geometric.data import Data
 from torch_geometric.nn import GCNConv, SAGPooling
 from torch_geometric.nn import global_mean_pool as gap, global_max_pool as gmp
-# import torch_geometric.utils as pyg_utils
 
-# Setting device
-# device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-# print(device)
-
-class TrussPool(torch.nn.Module):
+class CohesivePool(torch.nn.Module):
     def __init__(self, num_features, nhid, pooling_ratio=0.5):
         super().__init__()
         self.conv1 = GCNConv(num_features, nhid)
@@ -35,7 +17,7 @@ class TrussPool(torch.nn.Module):
         # Generate node embeddings
         x1 = F.relu(self.conv1(data.x, data.edge_index))
         x = F.relu(self.conv2(x1, data.edge_index))  # [num_nodes, nhid]
-        # print(data.original_node_indices,"\tCheck")
+       
         # Process with SAGPooling
         x_pool, edge_index, _, batch, perm, _ = self.pool(x1, data.edge_index)
         
@@ -77,7 +59,7 @@ class MultiHeadSelfAttention(torch.nn.Module):
 class NodeClassifier(torch.nn.Module):
     def __init__(self, num_features, nhid, num_classes, pooling_ratio = 0.5, num_heads = 2):
         super().__init__()
-        self.truss = TrussPool(num_features, nhid, pooling_ratio=pooling_ratio)
+        self.cacos = CohesivePool(num_features, nhid, pooling_ratio=pooling_ratio)
         self.subgraph_attention = MultiHeadSelfAttention(nhid * 2, num_heads = num_heads)  # Match pooled dim
         self.conv_final = GCNConv(nhid * 3, num_classes)
         # self.lin = torch.nn.Linear(nhid * 3, num_classes)  # nhid (node) + nhid*2 (subgraph)
@@ -93,7 +75,7 @@ class NodeClassifier(torch.nn.Module):
         
         for subg in all_subgraphs:
             # Get node emb (nhid) and subgraph emb (nhid*2)
-            node_embs, subgraph_emb, edge_index, perm, _ = self.truss(subg)
+            node_embs, subgraph_emb, edge_index, perm, _ = self.cacos(subg)
             
             ######### Mapping for testing ##############################
             # Get original node indices for the pooled subgraph
@@ -111,16 +93,9 @@ class NodeClassifier(torch.nn.Module):
                 'mapping': subg.original_node_indices
             })
         
-        
-        ####### Save pooled graph for experiment #####################
-        torch.save(all_original_edge_indices, "Subs_original_edge_indices.pt")
-        ##############################################################
-        
         # Stack subgraph embeddings (now all [nhid*2])
         subgraph_embeddings = torch.stack([info['subgraph_emb'] for info in subgraph_info])  # [num_subgraphs, nhid*2]
         
-        # attended_subgraphs = subgraph_embeddings 
-        #### If we comment out this part it means the attention is reducting from the experiment
         # Apply cross-attention
         attended_subgraphs = self.subgraph_attention(
             subgraph_embeddings, 
