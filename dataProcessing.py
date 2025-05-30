@@ -32,7 +32,7 @@ class ProcessDataset(Dataset):
       return label_dict, num_of_classes
 
     ############################ Truss Decomposition #############################################
-    def get_all_edges_trussness_and_decomposition(self, G):
+    def get_all_edges_trussness_and_decomposition(self, G, t_len = 0):
 
         """
         Compute and assign the trussness score to each edge in graph G.
@@ -89,29 +89,22 @@ class ProcessDataset(Dataset):
             G1 = G.copy()
             i += 1
         
+        if t_len > 0: 
+            final_decomposition_dict = trussness_dict.copy()
+            # merging_sequentially
+            # final_decomposition_dict, nodes_trussness_dict = merging_sequentially(final_decomposition_dict, nodes_trussness_dict, t_len)
+            # final_decomposition_dict = force_merge(final_decomposition_dict, t_len)
+            final_decomposition_dict = dict(sorted(final_decomposition_dict.items(), key=lambda item: item[0]))
+            
+            for key in final_decomposition_dict.keys(): 
+                for u, v in final_decomposition_dict[key]:
+                    G_main[u][v]['weight'] = key
+        print('\n')
         return G_main, trussness_dict #, edge_list_dict
 
 
     ################################# Core Decomposition  ###############################################
-    def get_all_edges_coreness_and_decomposition(self, G):
-        
-        """
-        Compute and assign the coreness score to each edge in graph G.
-
-        This function iteratively finds the k-core subgraph for increasing values
-        of k, starting from k=1. For each value of k, it determines the nodes that
-        belong to the (>= k)-degrees but not the k-truss. 
-
-        Parameters:
-        - G (NetworkX graph): The input graph.
-
-        Returns:
-        - G_main (NetworkX graph): A copy of G where each edge has an assigned
-                    'weight' attribute containing a dictionary with the trussness and
-                    support.
-        - coreness_dict (dict): A dictionary where the keys are coreness scores
-                    and the values are lists of edges that have the corresponding trussness.
-        """
+    def get_all_edges_coreness_and_decomposition(self, G, t_len = 0):
 
         G_main = G.copy()  # print(G_main,'--------Main Graph Info-------')
         coreness_dict = dict()
@@ -132,6 +125,8 @@ class ProcessDataset(Dataset):
 
             if i <= 1:
                 pass
+            # elif i == 1:
+            #     coreness_dict[i-1] = list(deducted_nodes)
             else:
                 for u, v in deducted_edges: 
                     if G_main.has_edge(u, v): 
@@ -159,6 +154,14 @@ class ProcessDataset(Dataset):
         for key in unused_key_list:
             del coreness_dict[key]
                 
+        if t_len > 0: 
+            final_decomposition_dict = coreness_dict.copy()
+            final_decomposition_dict = dict(sorted(final_decomposition_dict.items(), key=lambda item: item[0]))
+
+            for key in final_decomposition_dict.keys(): 
+                for u, v in final_decomposition_dict[key]:
+                    G_main[u][v]['weight'] = key
+            
         return G_main, coreness_dict 
     ############################################################################
 
@@ -189,7 +192,7 @@ class ProcessDataset(Dataset):
             # }
 
             # Efficient tensor remapping using broadcasting
-            idx_mapper = torch.zeros(torch.max(subgraph_node_indices) + 1, 
+            idx_mapper = torch.zeros(torch.max(subgraph_node_indices)+1, 
                                 dtype=torch.long)
             idx_mapper[subgraph_node_indices] = torch.arange(len(subgraph_node_indices))
             remapped_edge_index = idx_mapper[filtered_edge_index.to(idx_mapper.device)]
@@ -288,6 +291,7 @@ class ProcessDataset(Dataset):
             deg = torch.tensor([1 for node in node_list])
             node_features = torch.diag(deg).float()
             
+            # self.PyG_data_graph = Data(x = node_features, edge_index = edge_index, y = node_labels,train_mask = train_mask, val_mask = val_mask, test_mask = test_mask ).to(device)
             self.PyG_data_graph = Data(x = node_features, edge_index = edge_index, y = node_labels,train_mask = train_mask, \
                                        val_mask = val_mask, test_mask = test_mask ).to(self.device)
             edges = list(G_main.edges(data = 'weight'))
@@ -297,6 +301,7 @@ class ProcessDataset(Dataset):
             
             print(self.PyG_data_graph)
             ### Transform to PyG
+            
             self.PyG_data_graph.num_classes = num_of_classes
             
         else:

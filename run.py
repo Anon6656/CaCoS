@@ -22,6 +22,7 @@ if __name__ == "__main__":
     parser.add_argument('--device', type = str, default= 'cuda:0', help = 'specify the cuda device' )
     parser.add_argument('--epochs', type = int, default = 250, help = 'number of ipoches')
     parser.add_argument('--given_patience', type = int, default= 50, help= 'stopping criteria')
+    parser.add_argument('--num_layers', type = int, default= 2, help= 'number of layers')
     parser.add_argument('--precomp_feat', type = str, default= 'no', help= 'feature computation')
     parser.add_argument('--num_heads',type = int, default= 2, help= 'number_of_heads_in_subgraphs_attention')
 
@@ -119,6 +120,6 @@ if __name__ == "__main__":
                             decom_type =args.decom_type, precomp_feat = args.precomp_feat,
                             pooling_ratio = args.pooling_ratio, weight_decay = args.weight_decay, \
                             epochs = args.epochs, given_patience = args.given_patience, \
-                            seed = args.seed, num_heads = args.num_heads)
+                            num_layers = args.num_layers, seed = args.seed, num_heads = args.num_heads)
         execution.final_Operation()
     print('\n')

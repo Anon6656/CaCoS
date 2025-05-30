@@ -7,6 +7,7 @@ from torch_geometric.nn import global_mean_pool as gap, global_max_pool as gmp
 class CohesivePool(torch.nn.Module):
     def __init__(self, num_features, nhid, pooling_ratio=0.5):
         super().__init__()
+        
         self.conv1 = GCNConv(num_features, nhid)
         self.conv2 = GCNConv(nhid, nhid)
         self.subgraph_conv = GCNConv(nhid, nhid)
@@ -57,13 +58,24 @@ class MultiHeadSelfAttention(torch.nn.Module):
         return self.out(out)
 
 class NodeClassifier(torch.nn.Module):
-    def __init__(self, num_features, nhid, num_classes, pooling_ratio = 0.5, num_heads = 2):
+    def __init__(self, num_features, nhid, num_classes, pooling_ratio = 0.5, num_layers = 2 , num_heads = 2):
         super().__init__()
         self.cacos = CohesivePool(num_features, nhid, pooling_ratio=pooling_ratio)
         self.subgraph_attention = MultiHeadSelfAttention(nhid * 2, num_heads = num_heads)  # Match pooled dim
-        self.conv_final = GCNConv(nhid * 3, num_classes)
-        # self.lin = torch.nn.Linear(nhid * 3, num_classes)  # nhid (node) + nhid*2 (subgraph)
+        self.num_layers = num_layers
         self.nhid = nhid
+        
+        self.middle_convs = torch.nn.ModuleList() 
+        
+        if (num_layers - 2) > 0: 
+            ### For increasing Layers
+            self.middle_convs.append(GCNConv(nhid*3, nhid//2))
+            for i in range(1, self.num_layers-2):
+                self.middle_convs.append(GCNConv(nhid//2, nhid//2))
+            self.conv_final = GCNConv(nhid//2, num_classes)
+        else:
+            self.conv_final = GCNConv(nhid * 3, num_classes)
+
 
     def forward(self, data, epoch = 0):
         all_subgraphs = data.subgraphs
@@ -122,4 +134,11 @@ class NodeClassifier(torch.nn.Module):
             global_emb[mapping] += combined
             counts[mapping] += 1
             
+        if (self.num_layers - 2) > 0:
+            global_emb = F.relu(self.middle_convs[0](global_emb, data.edge_index))
+            for i in range(1, self.num_layers-2):
+                global_emb = F.relu(self.middle_convs[i](global_emb, data.edge_index))
+        else:
+            global_emb = global_emb
+ 
         return F.log_softmax(self.conv_final(global_emb, data.edge_index), dim=-1), global_emb

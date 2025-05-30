@@ -1,6 +1,8 @@
 
 import torch
 import os
+import random
+import numpy as np
 import torch.nn.functional as F
 import networkx as nx
 from collections import OrderedDict
@@ -10,26 +12,34 @@ from dataProcessing import ProcessDataset
 class Execution:
     def __init__(self, dataset, edgelist_file, label_file, dimension, learning_rate, baseline, **kwargs):
     
-      #torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-      self.dataset = dataset
-      self.edgelist_file = edgelist_file
-      self.label_file = label_file
-      self.dimension = dimension
-      self.learning_rate = learning_rate
-      self.baseline = baseline
-      self.num_of_layers = 0
-      self.device = kwargs.get('device', 'cuda')
-      self.precomp_feat = kwargs.get('precomp_feat', 'no')
-      self.num_heads = kwargs.get('num_heads', 2)
-      self.decom_type = kwargs.get('decom_type','core')
-      self.weight_decay = kwargs.get('weight_decay', 0.0001)
-      self.epochs = kwargs.get('epochs', 500)
-      self.patience = kwargs.get('given_patience', 100)
-      self.pooling_ratio = kwargs.get('pooling_ratio', 0.5)
-      self.seed =  kwargs.get('seed', 6)
-      self.result_path = os.getcwd()
+        #torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.dataset = dataset
+        self.edgelist_file = edgelist_file
+        self.label_file = label_file
+        self.dimension = dimension
+        self.learning_rate = learning_rate
+        self.baseline = baseline
+        self.num_of_layers = 0
+        self.device = kwargs.get('device', 'cuda')
+        self.precomp_feat = kwargs.get('precomp_feat', 'no')
+        self.num_heads = kwargs.get('num_heads', 2)
+        self.decom_type = kwargs.get('decom_type','core')
+        self.weight_decay = kwargs.get('weight_decay', 0.0001)
+        self.epochs = kwargs.get('epochs', 500)
+        self.patience = kwargs.get('given_patience', 100)
+        self.pooling_ratio = kwargs.get('pooling_ratio', 0.5)
+        self.num_layers = kwargs.get('num_layers', 2)
+        self.seed =  kwargs.get('seed', 6)
+        self.result_path = os.getcwd()
 
 ########################################### Node Classifier Test ###################################
+    def setup_seed(self, seed):
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
     def train_test_nc(self, model, data_main):
         
@@ -109,23 +119,22 @@ class Execution:
 
     def node_classification(self, data, baseline):
     
+        best_test_acc = 0
+        baseline = baseline # input('Type the model name: ')
 
-      
-      best_test_acc = 0
-      baseline = baseline # input('Type the model name: ')
-      
-      print('The selected Baseline: ',baseline)
-        
-      model = NodeClassifier(data.x.shape[1], nhid = self.dimension, num_classes= data.num_classes, \
-                             pooling_ratio=self.pooling_ratio, num_heads=self.num_heads).to(self.device)
-      best_test_acc = self.train_test_nc(model, data)
-        
-      return best_test_acc
+        print('The selected Baseline: ',baseline)
+
+        model = NodeClassifier(data.x.shape[1], nhid = self.dimension, num_classes= data.num_classes, \
+                             pooling_ratio=self.pooling_ratio, num_layers = self.num_layers, \
+                             num_heads=self.num_heads).to(self.device)
+        best_test_acc = self.train_test_nc(model, data)
+
+        return best_test_acc
 
     ############# Method  for getting labels ( within label dictionary) ##############
     def get_label_dict(self, filename):
-        label_dict = OrderedDict()
     
+        label_dict = OrderedDict()
         with open(filename, 'r') as labelfile:
             for line in labelfile:
                 line = line.split(' ')
@@ -142,21 +151,12 @@ class Execution:
         G = nx.read_edgelist(self.edgelist_file, nodetype=int)
         G = nx.compose(G, infant_Graph)
         G.remove_edges_from(nx.selfloop_edges(G))
-        # random = 'Yes'
-        
-        # print(G)
-        # pruned_Graphs_files = os.listdir(self.pruned_Graphs_path)
       
         print('Original Graph: ', G)
+        baseline = self.baseline 
+        print('The Method: ', baseline)
       
-        # ########## Baseline #####################################
-        baseline = self.baseline # 'gcn' #input('Type the model name: ')
-        print('The selected Baseline: ', baseline)
-      
-        ### Test for different layers
-        # layer_list = [2]  #[2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,18,20]
         number_of_run = 10
-        # #for layer in range(2, 11):
         result_list = list()
         
         dataset = ProcessDataset(G, self.label_file, self.dataset, \
@@ -171,6 +171,7 @@ class Execution:
             print(f"\n Iter: {i+1}")
       
             self.seed = i + 1
+            self.setup_seed(self.seed)
             # setup_seed(self.seed)
            
             if i > 0: 
