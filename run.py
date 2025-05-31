@@ -23,7 +23,6 @@ if __name__ == "__main__":
     parser.add_argument('--epochs', type = int, default = 250, help = 'number of ipoches')
     parser.add_argument('--given_patience', type = int, default= 50, help= 'stopping criteria')
     parser.add_argument('--num_layers', type = int, default= 2, help= 'number of layers')
-    parser.add_argument('--precomp_feat', type = str, default= 'no', help= 'feature computation')
     parser.add_argument('--num_heads',type = int, default= 2, help= 'number_of_heads_in_subgraphs_attention')
 
     ### Input management 
@@ -117,7 +116,7 @@ if __name__ == "__main__":
           
         execution = Execution(dataset, edgelist_file, label_file, dimension = args.nhid,\
                             learning_rate = args.lr, baseline = baseline, \
-                            decom_type =args.decom_type, precomp_feat = args.precomp_feat,
+                            decom_type =args.decom_type,
                             pooling_ratio = args.pooling_ratio, weight_decay = args.weight_decay, \
                             epochs = args.epochs, given_patience = args.given_patience, \
                             num_layers = args.num_layers, seed = args.seed, num_heads = args.num_heads)

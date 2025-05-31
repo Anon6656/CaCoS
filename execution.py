@@ -21,12 +21,11 @@ class Execution:
         self.baseline = baseline
         self.num_of_layers = 0
         self.device = kwargs.get('device', 'cuda')
-        self.precomp_feat = kwargs.get('precomp_feat', 'no')
         self.num_heads = kwargs.get('num_heads', 2)
         self.decom_type = kwargs.get('decom_type','core')
         self.weight_decay = kwargs.get('weight_decay', 0.0001)
-        self.epochs = kwargs.get('epochs', 500)
-        self.patience = kwargs.get('given_patience', 100)
+        self.epochs = kwargs.get('epochs', 250)
+        self.patience = kwargs.get('given_patience', 50)
         self.pooling_ratio = kwargs.get('pooling_ratio', 0.5)
         self.num_layers = kwargs.get('num_layers', 2)
         self.seed =  kwargs.get('seed', 6)
@@ -145,7 +144,7 @@ class Execution:
 
     def final_Operation(self):
     
-        label_dict, num_of_classes = self.get_label_dict(self.label_file)
+        label_dict, num_of_classes = ProcessDataset.get_label_dict(self)
         infant_Graph = nx.Graph()
         infant_Graph.add_nodes_from(list(label_dict.keys()))
         G = nx.read_edgelist(self.edgelist_file, nodetype=int)
@@ -160,12 +159,10 @@ class Execution:
         result_list = list()
         
         dataset = ProcessDataset(G, self.label_file, self.dataset, \
-                                 decom_type = self.decom_type, precomp_feat= self.precomp_feat, device = self.device)
-        # g1, num_of_classes  = dataset.process()
+                                 decom_type = self.decom_type, device = self.device)
         data = dataset.process()
         
-        
-        print(dataset)
+        print(f"Dataset Details: {dataset}")
         for i in range(number_of_run):
       
             print(f"\n Iter: {i+1}")
