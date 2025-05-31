@@ -130,18 +130,6 @@ class Execution:
 
         return best_test_acc
 
-    ############# Method  for getting labels ( within label dictionary) ##############
-    def get_label_dict(self, filename):
-    
-        label_dict = OrderedDict()
-        with open(filename, 'r') as labelfile:
-            for line in labelfile:
-                line = line.split(' ')
-                line[1] = int(line[1].rstrip('\n'))
-                label_dict[int(line[0])] = line[1]
-            num_of_classes = len(set(label_dict.values()))
-        return label_dict, num_of_classes
-
     def final_Operation(self):
     
         label_dict, num_of_classes = ProcessDataset.get_label_dict(self)

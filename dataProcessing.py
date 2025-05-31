@@ -87,7 +87,6 @@ class ProcessDataset(Dataset):
             G1 = G.copy()
             i += 1
         
-
         return G_main, trussness_dict #, edge_list_dict
 
 
@@ -181,6 +180,7 @@ class ProcessDataset(Dataset):
             )
             
             subgraphs[attr_value.item()] = subgraph_data
+
         return subgraphs
     
     def get_train_val_test_masks(self, n_nodes, seed = 1):
