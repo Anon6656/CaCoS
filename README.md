@@ -18,5 +18,5 @@ Here for space limitations small and medium size datasets
 have been upoladed.
 
 
-## Finally use command **python run.py** to observe the result
+## 3. Finally use command **python run.py** to observe the result
 
