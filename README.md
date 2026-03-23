@@ -19,5 +19,5 @@ have been upoladed.
 
 
 ## 3. Finally use command to observe the result
-python run.py 
+python run_NC.py 
 
