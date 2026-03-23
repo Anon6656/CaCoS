@@ -1,8 +1,10 @@
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GCNConv, SAGPooling
+from torch_geometric.nn import GCNConv, SAGPooling, TopKPooling
 from torch_geometric.nn import global_mean_pool as gap, global_max_pool as gmp
+from torch_geometric.data import DataLoader
+from torch_scatter import scatter_mean
 
 class CohesivePool(torch.nn.Module):
     def __init__(self, num_features, nhid, pooling_ratio=0.5):
@@ -107,7 +109,8 @@ class NodeClassifier(torch.nn.Module):
         
         # Stack subgraph embeddings (now all [nhid*2])
         subgraph_embeddings = torch.stack([info['subgraph_emb'] for info in subgraph_info])  # [num_subgraphs, nhid*2]
-        
+        attended_subgraphs = subgraph_embeddings
+
         # Apply cross-attention
         attended_subgraphs = self.subgraph_attention(
             subgraph_embeddings, 
@@ -142,3 +145,113 @@ class NodeClassifier(torch.nn.Module):
             global_emb = global_emb
  
         return F.log_softmax(self.conv_final(global_emb, data.edge_index), dim=-1), global_emb
+
+###################################### Graph Classifier ###########################################################
+
+class CohseviePoolGC(torch.nn.Module):
+    def __init__(self, num_features, nhid, pooling_ratio=0.5):
+        super(CohseviePoolGC, self).__init__()
+        self.conv1 = GCNConv(num_features, nhid)
+        
+        self.pool1 = 'SAG'
+        print(self.pool1 )
+        if self.pool1 == 'SAG':
+            self.pool1 = SAGPooling(nhid, ratio=pooling_ratio)
+        else:
+            self.pool1 = TopKPooling(nhid, ratio=pooling_ratio)
+        # self.pool1 = SAGPooling(nhid, ratio=pooling_ratio)
+        self.conv2 = GCNConv(nhid, nhid)
+        # self.pool2 = SAGPooling(nhid, ratio=pooling_ratio)
+
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+
+        # First convolution and pooling
+        x = F.relu(self.conv1(x, edge_index))
+        x, edge_index, _, batch, _, _ = self.pool1(x, edge_index, None, batch)
+
+        # Apply global pooling
+        pooled_x1 = torch.cat([gmp(x, batch), gap(x, batch)], dim=1)  # Shape: [num_graphs_in_batch, embedding_dim]
+
+        # Second convolution and pooling
+        x = F.relu(self.conv2(x, edge_index))
+        # x, edge_index, _, batch, _, _ = self.pool2(x, edge_index, None, batch)
+
+        # Apply global pooling again
+        pooled_x2 = torch.cat([gmp(x, batch), gap(x, batch)], dim=1)
+
+        # Return the combined pooled embedding for each graph
+        return pooled_x1 + pooled_x2  # Shape: [num_graphs_in_batch, embedding_dim]
+
+class GraphClassifier(torch.nn.Module):
+    def __init__(self, num_features, nhid, num_classes, pooling_ratio=0.5, num_heads = 1):
+        super(GraphClassifier, self).__init__()
+        self.tpool = CohseviePoolGC(num_features, nhid, pooling_ratio)
+        self.cross_attention = MultiHeadSelfAttention(nhid * 2, num_heads = num_heads)
+        self.lin1 = torch.nn.Linear(nhid * 2, nhid)
+        self.lin2 = torch.nn.Linear(nhid, nhid // 2)
+        self.lin3 = torch.nn.Linear(nhid // 2, num_classes)
+        
+    def forward(self, data):
+        # Unbatch the main graph batch
+        graph_list = data.to_data_list()
+        # emb_g = self.tpool(data)
+        
+        # Collect all subgraphs with their original graph indices
+        all_subgraphs = []
+        graph_indices = [] 
+        
+        for graph_idx, graph_data in enumerate(graph_list):
+            # Add graph_idx to each subgraph as a tensor attribute
+            # print(len(graph_data.subgraphs))
+            for subgraph in graph_data.subgraphs:
+                
+                all_subgraphs.append(subgraph)
+                graph_indices.append(graph_idx)
+                
+                # subgraph.graph_idx = torch.tensor(graph_idx, dtype=torch.long)
+                # all_subgraphs.append(subgraph)
+        
+        if not all_subgraphs:
+            # Handle case with no subgraphs (if possible)
+            raise ValueError("No subgraphs found in batch")
+        
+        # Batch all subgraphs and move to device
+        subgraph_loader = DataLoader(all_subgraphs, batch_size=len(all_subgraphs), shuffle=False)
+        subgraph_batch = next(iter(subgraph_loader)).to(data.x.device)
+        
+        # Process all subgraphs in parallel
+        subgraph_embeddings = self.tpool(subgraph_batch)  # [total_subgraphs, embedding_dim]
+        
+        # Get graph indices from batched subgraphs
+        # graph_indices = subgraph_batch.graph_idx  # [total_subgraphs]
+        
+        #### Cross attention is commented for ablation study
+        # # Apply cross-attention between subgraphs
+        subgraph_embeddings = self.cross_attention(subgraph_embeddings, subgraph_embeddings, subgraph_embeddings)
+        
+        
+        # Aggregate subgraph embeddings by original graph using mean
+        graph_indices_tensor = torch.tensor(graph_indices, device=data.x.device)
+        batch_size = len(graph_list)
+        graph_embeddings = scatter_mean(
+            subgraph_embeddings, 
+            graph_indices_tensor, 
+            dim=0, 
+            dim_size=batch_size
+        )  # [batch_size, embedding_dim]
+        
+        self.graph_embeddings = graph_embeddings
+        self.attended_subgraphs = subgraph_embeddings
+        self.graph_indices = graph_indices_tensor
+        
+        graph_embeddings = graph_embeddings.squeeze(1)
+        
+
+        # MLP processing
+        x = F.relu(self.lin1(graph_embeddings))
+        x = F.dropout(x, training=self.training)
+        x = F.relu(self.lin2(x))
+        x = F.log_softmax(self.lin3(x), dim=-1)
+
+        return x

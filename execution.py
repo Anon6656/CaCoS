@@ -29,6 +29,7 @@ class Execution:
         self.pooling_ratio = kwargs.get('pooling_ratio', 0.5)
         self.num_layers = kwargs.get('num_layers', 2)
         self.seed =  kwargs.get('seed', 6)
+        self.delta =  kwargs.get('delta', 3)
         self.result_path = os.getcwd()
 
 ########################################### Node Classifier Test ###################################
@@ -147,7 +148,7 @@ class Execution:
         result_list = list()
         
         dataset = ProcessDataset(G, self.label_file, self.dataset, \
-                                 decom_type = self.decom_type, device = self.device)
+                                 decom_type = self.decom_type, device = self.device, delta = self.delta)
         data = dataset.process()
         
         print(f"Dataset Details: {dataset}")
@@ -157,7 +158,7 @@ class Execution:
       
             self.seed = i + 1
             self.setup_seed(self.seed)
-            # setup_seed(self.seed)
+            #setup_seed(self.seed)
            
             if i > 0: 
                 train_mask, val_mask, test_mask = dataset.get_train_val_test_masks(n_nodes= len(G.nodes()), seed = self.seed)
