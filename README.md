@@ -19,5 +19,8 @@ have been upoladed.
 
 
 ## 3. Finally use command to observe the result
-python run_NC.py 
+### Node Classification
+python run_NC.py
+### Graph Classification
+python run_GC.py
 
